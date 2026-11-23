@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Compila Ordini</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231f3a5f%22/%3E%3Cpath d=%22M9 17l5 5 9-11%22 stroke=%22white%22 stroke-width=%223.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<script src="./jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #ffffff; --ink: #1c2230; --muted: #6b7280; --line: #e4e0d8;
+    --accent: #1f3a5f; --accent-2: #2c5282; --ok: #1d7a46; --ok-bg: #e7f4ec; --err: #b42318; --err-bg: #fdecea;
+    --warn: #8a5a00; --warn-bg: #fff4dc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 20px 60px; }
+  header h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin-top: 22px;
+          box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .drop { border: 2px dashed #c9c2b4; border-radius: 12px; padding: 38px 20px; text-align: center; cursor: pointer;
+          transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent-2); background: #eef3f9; }
+  .drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+  .drop span { color: var(--muted); font-size: 14px; }
+  .files { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .slot { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-height: 64px; }
+  .slot h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .slot ul { list-style: none; margin: 0; padding: 0; }
+  .slot li { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 2px 0; word-break: break-all; }
+  .slot li button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+  .slot .empty { color: #a8a29a; font-size: 14px; }
+  .actions { display: flex; gap: 12px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+  .btn { appearance: none; border: 0; border-radius: 10px; padding: 12px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:disabled { background: #9aa6b8; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  .hint { color: var(--muted); font-size: 13px; }
+  .banner { border-radius: 12px; padding: 16px 18px; font-weight: 600; font-size: 17px; display: flex; gap: 12px; align-items: center; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); }
+  .banner.err { background: var(--err-bg); color: var(--err); }
+  .banner .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; flex: none; }
+  .order { margin-top: 22px; }
+  .order h2 { font-size: 17px; margin: 0 0 4px; }
+  .order .sub { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+       font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 10px; border-bottom: 1px solid #f0ece5; vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.err { background: var(--err-bg); color: var(--err); }
+  .sizes { font-variant-numeric: tabular-nums; color: #374151; }
+  .sizes b { font-weight: 600; color: var(--ink); }
+  .msgs { margin-top: 18px; }
+  .msgs h3 { font-size: 14px; margin: 14px 0 6px; }
+  .msgs ul { margin: 0; padding-left: 18px; }
+  .msgs li { margin: 3px 0; font-size: 14px; }
+  .msgs .e li { color: var(--err); } .msgs .w li { color: var(--warn); }
+  .dl { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; margin-top: 22px; border-bottom: 1px solid var(--line); }
+  .tab { appearance: none; border: 0; background: none; font: inherit; font-weight: 600; font-size: 16px; color: var(--muted);
+         padding: 10px 18px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+  .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .panel[hidden] { display: none; }
+  .intro { color: var(--muted); margin: 14px 0 0; }
+  .mode { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; font-size: 14px; }
+  .mode label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  .mode input { margin-top: 3px; }
+  .mode span small { display: block; color: var(--muted); }
+  footer { margin-top: 26px; color: var(--muted); font-size: 13px; text-align: center; }
+  @media (max-width: 640px) { .files { grid-template-columns: 1fr; } th:nth-child(4), td:nth-child(4) { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Compila Ordini</h1>
+    <p>Carica il PDF dell'ordine e l'Excel da compilare: le quantità vengono riportate in automatico.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="hopper" aria-selected="true">Hopper<small>catalog export</small></button>
+    <button class="tab" role="tab" data-tab="verita" aria-selected="false">Verita<small>order form</small></button>
+  </nav>
+  <div id="panels"></div>
+
+  <footer>I file vengono elaborati solo nel tuo browser e non vengono inviati a nessun server.</footer>
+</main>
+
+<script type="module">
+import { Report, processOrder, processVerita } from "./engine.js";
+
+const escHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const TABS = {
+  hopper: {
+    intro: "Excel <b>catalog export</b>: l'articolo si trova con <b>Product Ref.</b> e le quantità vanno nelle colonne <b>SOLID</b> della taglia.",
+    excelExt: [".xlsx"], modes: null,
+    run: (pdf, xls, rep) => processOrder(pdf, xls, rep),
+  },
+  verita: {
+    intro: "Excel <b>order form</b>: l'articolo si trova con lo <b>SKU</b>, e WOMAN e MAN vanno nelle rispettive colonne.",
+    excelExt: [".xlsx", ".xlsm"],
+    modes: [
+      ["pack", "A pacchi (consigliato)", "Scrive il numero di pacchi in PACK ORDER (es. XL P12 = 1), se le taglie del PDF corrispondono al pacco dell'Excel"],
+      ["unit", "Taglie singole", "Scrive le paia taglia per taglia in UNIT ORDER"],
+    ],
+    run: (pdf, xls, rep, mode) => processVerita(pdf, xls, rep, mode),
+  },
+};
+
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function makePanel(key, cfg) {
+  const el = document.createElement("div");
+  el.className = "panel"; el.dataset.panel = key;
+  const accept = [".pdf", ...cfg.excelExt].join(",");
+  el.innerHTML = `
+  <section class="card">
+    <div class="drop" tabindex="0" role="button" aria-label="Scegli i file">
+      <strong>Trascina qui il PDF dell'ordine e l'Excel</strong>
+      <span>oppure clicca per sceglierli · puoi mettere più PDF insieme</span>
+      <input class="pick" type="file" accept="${accept}" multiple hidden>
+    </div>
+    <p class="intro">${cfg.intro}</p>
+    ${cfg.modes ? `<div class="mode">${cfg.modes.map(([v, t, d], i) =>
+      `<label><input type="radio" name="mode-${key}" value="${v}" ${i === 0 ? "checked" : ""}><span>${t}<small>${d}</small></span></label>`).join("")}</div>` : ""}
+    <div class="files">
+      <div class="slot"><h3>Ordini PDF</h3><ul class="pdfList"></ul></div>
+      <div class="slot"><h3>Excel da compilare</h3><ul class="xlsList"></ul></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary run" disabled>Compila</button>
+      <button class="btn btn-ghost reset">Ricomincia</button>
+      <span class="hint">Servono almeno un PDF e un Excel.</span>
+    </div>
+  </section>
+  <section class="card out" hidden></section>`;
+  const q = (s) => el.querySelector(s);
+  const pdfs = [], xls = [];
+  const render = () => {
+    const li = (arr, w) => arr.length
+      ? arr.map((f, i) => `<li><span>${escHtml(f.name)}</span><button data-w="${w}" data-i="${i}" title="Togli">×</button></li>`).join("")
+      : `<li class="empty">${w === "p" ? "Nessun PDF" : "Nessun Excel"}</li>`;
+    q(".pdfList").innerHTML = li(pdfs, "p"); q(".xlsList").innerHTML = li(xls, "x");
+    const ready = pdfs.length && xls.length === 1;
+    q(".run").disabled = !ready;
+    q(".hint").textContent = ready ? `${pdfs.length} ordine/i pronto/i.` : "Servono almeno un PDF e un Excel.";
+  };
+  const add = (list) => {
+    for (const f of list) {
+      const n = f.name.toLowerCase();
+      if (n.endsWith(".pdf")) { if (!pdfs.some((p) => p.name === f.name)) pdfs.push(f); }
+      else if (cfg.excelExt.some((e) => n.endsWith(e))) { xls.length = 0; xls.push(f); }
+    }
+    render();
+  };
+  el.addFile = add;
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-w]"); if (!b) return;
+    (b.dataset.w === "p" ? pdfs : xls).splice(Number(b.dataset.i), 1); render();
+  });
+  const drop = q(".drop"), pick = q(".pick");
+  drop.addEventListener("click", () => pick.click());
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") pick.click(); });
+  pick.addEventListener("change", () => { add(pick.files); pick.value = ""; });
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { e.stopPropagation(); add(e.dataTransfer.files); });
+  q(".reset").addEventListener("click", () => { pdfs.length = 0; xls.length = 0; q(".out").hidden = true; q(".out").innerHTML = ""; render(); });
+
+  q(".run").addEventListener("click", async () => {
+    const btn = q(".run"); btn.disabled = true; btn.textContent = "Elaborazione…";
+    const out = q(".out"); out.hidden = false; out.innerHTML = `<p class="note">Sto leggendo i file…</p>`;
+    const mode = el.querySelector(`input[name="mode-${key}"]:checked`)?.value;
+    const rep = new Report(); const results = [];
+    for (const p of pdfs) {
+      try { results.push(await cfg.run(p, xls[0], rep, mode)); }
+      catch (e) { rep.err(`${p.name}: errore imprevisto: ${e.message || e}`); results.push({ pdfName: p.name, rows: [] }); }
+    }
+    const ok = rep.errors.length === 0;
+    let html = `<div class="banner ${ok ? "ok" : "err"}"><span class="dot"></span>${ok ? "Tutto fatto senza errori"
+      : `Completato con ${rep.errors.length} error${rep.errors.length === 1 ? "e" : "i"}`}</div>`;
+    const unit = key === "verita" ? "paia" : "pezzi";
+    results.forEach((r, i) => {
+      html += `<div class="order"><h2>${escHtml(r.pdfName)}</h2>
+        <div class="sub">${r.total ? `${r.filled} articoli compilati su ${r.total} · ${r.pieces} ${unit} nell'Excel` : "Nessun articolo compilato"}</div>`;
+      if (r.rows.length) {
+        const v = key === "verita";
+        html += `<table><thead><tr><th>Codice</th><th>Descrizione</th><th>Taglie</th><th>Riga Excel</th>${v ? "<th>Scritto in</th>" : ""}<th>Esito</th></tr></thead><tbody>`;
+        for (const row of r.rows) {
+          const sz = Object.entries(row.qty).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])).map(([s, n]) => `${s}:<b>${n}</b>`).join("  ");
+          const desc = v ? escHtml(row.model || row.desc) + (row.gender ? ` <b>${row.gender}</b>` : "") : escHtml(row.desc);
+          html += `<tr><td>${escHtml(row.ref)}</td><td>${desc}${row.note ? `<div class="note">${escHtml(row.note)}</div>` : ""}</td>
+            <td class="sizes">${sz || "—"}</td><td class="num">${row.excelRow ?? "—"}</td>${v ? `<td style="white-space:nowrap">${escHtml(row.how || "—")}</td>` : ""}
+            <td><span class="pill ${row.status}">${row.status === "ok" ? "OK" : "Errore"}</span></td></tr>`;
+        }
+        html += `</tbody></table>`;
+      }
+      if (r.blob) html += `<div class="dl"><button class="btn btn-primary" data-dl="${i}">Scarica ${escHtml(r.outName)}</button></div>`;
+      html += `</div>`;
+    });
+    html += `<div class="msgs">`;
+    if (rep.errors.length) html += `<h3>Errori</h3><ul class="e">${rep.errors.map((m) => `<li>${escHtml(m)}</li>`).join("")}</ul>`;
+    if (rep.warnings.length) html += `<h3>Avvisi</h3><ul class="w">${rep.warnings.map((m) => `<li>${escHtml(m)}</li>`).join("")}</ul>`;
+    html += `</div><div class="dl"><button class="btn btn-ghost dlrep">Scarica il report (.txt)</button></div>`;
+    out.innerHTML = html;
+    out.querySelectorAll("button[data-dl]").forEach((b) =>
+      b.addEventListener("click", () => { const r = results[Number(b.dataset.dl)]; download(r.blob, r.outName); }));
+    const txt = [`COMPILA ORDINI (${key === "verita" ? "Verita" : "Hopper"}) - ${new Date().toLocaleString("it-IT")}`, `Excel: ${xls[0].name}`, "", ...rep.info,
+      ...(rep.warnings.length ? ["", "AVVISI:", ...rep.warnings.map((w) => "- " + w)] : []),
+      ...(rep.errors.length ? ["", "ERRORI:", ...rep.errors.map((e) => "- " + e)] : ["", "ESITO: tutto fatto senza errori."])].join("\n");
+    q(".dlrep").addEventListener("click", () => download(new Blob([txt + "\n"], { type: "text/plain" }), "Report_compilazione.txt"));
+    window.__lastResults = results; window.__lastReport = rep;
+    btn.disabled = false; btn.textContent = "Compila";
+    out.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  render();
+  return el;
+}
+
+const host = document.getElementById("panels");
+const panels = Object.fromEntries(Object.entries(TABS).map(([k, c]) => { const p = makePanel(k, c); host.appendChild(p); return [k, p]; }));
+function show(k) {
+  if (!panels[k]) k = "hopper";
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === k)));
+  Object.entries(panels).forEach(([n, p]) => (p.hidden = n !== k));
+  history.replaceState(null, "", "#" + k);
+  window.__tab = k;
+}
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => show(t.dataset.tab)));
+show(location.hash.slice(1));
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) panels[window.__tab].addFile(e.dataTransfer.files); });
+</script>
+</body>
+</html>
