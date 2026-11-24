@@ -94,7 +94,7 @@
 </main>
 
 <script type="module">
-import { Report, processOrder, processVerita } from "./engine.js";
+import { Report, processOrder, processVerita } from "./engine.js?v=2026-11-24";
 
 const escHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const TABS = {
