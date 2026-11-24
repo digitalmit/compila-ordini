@@ -33,7 +33,7 @@ export function normSize(s) {
 const center = (w) => (w.x0 + w.x1) / 2;
 
 // ------------------------------------------------------------------ PDF
-async function pdfWords(page) {
+async function pdfWords(page, dedupe = false) {
   const vp = page.getViewport({ scale: 1 });
   const tc = await page.getTextContent();
   const words = [];
@@ -48,15 +48,15 @@ async function pdfWords(page) {
     let m;
     while ((m = re.exec(it.str))) {
       const w = { text: m[0], x0: x + m.index * cw, x1: x + (m.index + m[0].length) * cw, top: base - fh };
-      // alcuni PDF scrivono lo stesso testo 2-4 volte sovrapposto (finto grassetto): lo tengo una volta sola
-      if (words.some((o) => o.text === w.text && Math.abs(o.x0 - w.x0) < 2 && Math.abs(o.top - w.top) < 2)) continue;
+      // Verita: alcuni PDF scrivono lo stesso testo 2-4 volte sovrapposto (finto grassetto): lo tengo una volta sola
+      if (dedupe && words.some((o) => o.text === w.text && Math.abs(o.x0 - w.x0) < 2 && Math.abs(o.top - w.top) < 2)) continue;
       words.push(w);
     }
   }
   return words;
 }
 
-function groupLines(words, tol = 5.0) {
+function groupLines(words, tol = 3.0) {
   const lines = [];
   const sorted = [...words].sort((a, b) => (Math.round(a.top * 10) - Math.round(b.top * 10)) || (a.x0 - b.x0));
   for (const w of sorted) {
@@ -90,7 +90,12 @@ const isTableHeader = (line) => {
   return t.includes("CODICE") && t.includes("PRODOTTO");
 };
 
-export async function parsePdf(file, rep) {
+// opzioni: Hopper usa i valori di default (comportamento originale);
+// Verita usa VERITA_PDF (testo duplicato tolto, righe sfalsate fino a 5 punti riunite)
+const HOPPER_PDF = { dedupe: false, tol: 3.0 };
+const VERITA_PDF = { dedupe: true, tol: 5.0 };
+
+export async function parsePdf(file, rep, opt = HOPPER_PDF) {
   const name = file.name;
   const data = new Uint8Array(await file.arrayBuffer());
   const task = pdfjsLib.getDocument({ data, isEvalSupported: false });
@@ -100,7 +105,7 @@ export async function parsePdf(file, rep) {
   const stream = [];
   for (let pno = 1; pno <= npages; pno++) {
     const page = await pdf.getPage(pno);
-    const lines = groupLines(await pdfWords(page));
+    const lines = groupLines(await pdfWords(page, opt.dedupe), opt.tol);
     lines.forEach((ln, i) => {
       if (ln.words.some((w) => w.text.includes("PZ/PAIA"))) {
         for (const nxt of lines.slice(i + 1, i + 4)) {
@@ -451,7 +456,7 @@ export async function processVerita(pdfFile, xlsxFile, rep, mode = "pack") {
   const pdfName = pdfFile.name;
   const res = { pdfName, rows: [], blob: null, outName: null, filled: 0, total: 0, pieces: 0 };
   let parsed;
-  try { parsed = await parsePdf(pdfFile, rep); }
+  try { parsed = await parsePdf(pdfFile, rep, VERITA_PDF); }
   catch (e) { rep.err(`Impossibile leggere il PDF ${pdfName}: ${e.message || e}`); return res; }
   const { items, grandTotal, npages, pagesWith } = parsed;
   rep.ok(`${pdfName}: ${npages} pagine controllate, articoli trovati nelle pagine ${pagesWith.join(", ") || "-"}.`);
