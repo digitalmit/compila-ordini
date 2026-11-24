@@ -47,13 +47,16 @@ async function pdfWords(page) {
     const re = /\S+/g;
     let m;
     while ((m = re.exec(it.str))) {
-      words.push({ text: m[0], x0: x + m.index * cw, x1: x + (m.index + m[0].length) * cw, top: base - fh });
+      const w = { text: m[0], x0: x + m.index * cw, x1: x + (m.index + m[0].length) * cw, top: base - fh };
+      // alcuni PDF scrivono lo stesso testo 2-4 volte sovrapposto (finto grassetto): lo tengo una volta sola
+      if (words.some((o) => o.text === w.text && Math.abs(o.x0 - w.x0) < 2 && Math.abs(o.top - w.top) < 2)) continue;
+      words.push(w);
     }
   }
   return words;
 }
 
-function groupLines(words, tol = 3.0) {
+function groupLines(words, tol = 5.0) {
   const lines = [];
   const sorted = [...words].sort((a, b) => (Math.round(a.top * 10) - Math.round(b.top * 10)) || (a.x0 - b.x0));
   for (const w of sorted) {
